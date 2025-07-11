@@ -1,4 +1,4 @@
-﻿#Persistent
+#Persistent
 #NoEnv
 SetBatchLines, -1
 Paused := False
