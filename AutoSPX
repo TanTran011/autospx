@@ -15,7 +15,6 @@ ShowMessage(title, message, type := "info") {
     return
 
     CloseMsg:
-    GuiClose:
     GuiEscape:
     Gui, Destroy
     return
