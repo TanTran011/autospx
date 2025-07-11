@@ -80,7 +80,6 @@ GuiControl,, LineCount, Số dòng: 0
 return
 
 ; === Thoát khi đóng GUI ===
-GuiClose:
 ExitApp
 
 ; === Thông báo GUI tùy chỉnh (thay MsgBox) ===
