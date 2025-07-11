@@ -1,116 +1,95 @@
-﻿#Persistent
-#NoEnv
-SetBatchLines, -1
-Paused := False
+#Persistent
+#SingleInstance force
+CoordMode, Mouse, Screen
+SetTitleMatchMode, 2
 
-; === Kiểm tra quyền truy cập ===
-if !CheckAuthorization() {
-    MsgBox, 16, Cảnh báo, Bạn không có quyền sử dụng phần mềm này!
-    ExitApp
-}
+auto := false
+exit_now := false
 
-; === Giao diện chính ===
-Gui, Add, Edit, vUserInput w300 R10 Multi gUpdateLineCount  ; Ô nhập dữ liệu, có sự kiện gõ
-Gui, Add, Text, vLineCount w150, Số dòng: 0                 ; Hiển thị số dòng (đã tăng chiều rộng)
-Gui, Add, Edit, vSpeed w50 Number, 500                      ; Ô nhập tốc độ (ms)
-Gui, Add, Button, gClearOutput, Xóa Output                 ; Nút xóa output
-Gui, Add, Edit, vOutput w300 R10 Multi ReadOnly            ; Ô hiển thị kết quả
-Gui, Show, , SPX Express
+; === GUI ===
+Gui, Add, Text, vStatusText w350 h30 center, 🍑 Trạng thái: Nhấn F7 để bắt đầu hái đào
+Gui, Show,, 🍑 Auto Kéo Đào Về Giỏ (By Tan)
 return
 
-; === Cập nhật số dòng mỗi khi gõ vào ===
-UpdateLineCount:
-GuiControlGet, UserInput,, UserInput
-LineCount := 0
-Loop, Parse, UserInput, `n, `r
-{
-    if (Trim(A_LoopField) != "")
-        LineCount++
-}
-GuiControl,, LineCount, Số dòng: %LineCount%
-return
-
-; === Nhấn F7 để bắt đầu nhập từng dòng ===
+; === F7: Bật/tắt ===
 F7::
-Gui, Submit, NoHide
-
-OutputText := ""  ; Xóa nội dung cũ
-Loop, Parse, UserInput, `n, `r
+auto := !auto
+exit_now := false
+if (auto)
 {
-    if (A_LoopField = "")  ; Bỏ qua dòng trống
-        Continue
-    while Paused  ; Tạm dừng nếu cần
-        Sleep, 50
-    SendInput, %A_LoopField%
-    Send, {Enter}
-    OutputText .= A_LoopField . "`n"
-    GuiControl,, Output, %OutputText%
-    Sleep, %Speed%
+    GuiControl,, StatusText, 🟢 Đang kéo... Nhấn F9 để dừng
+    SetTimer, AutoDrag, 10
+}
+else
+{
+    GuiControl,, StatusText, ⏹ Đã dừng
+    SetTimer, AutoDrag, Off
 }
 return
 
-; === Nhấn F8 để tạm dừng hoặc tiếp tục ===
-F8:: 
-Paused := !Paused
+; === F9: Dừng khẩn cấp ===
+F9::
+exit_now := true
+auto := false
+SetTimer, AutoDrag, Off
+GuiControl,, StatusText, ⛔ Đã dừng tất cả hành động!
 return
 
-ClearOutput:
-GuiControl,, Output,
-GuiControl,, LineCount, Số dòng: 0
+; === Hàm kéo tự động ===
+AutoDrag:
+if (exit_now || !auto)
+    return
+
+; VÙNG CÂY ĐÀO
+startX := 340
+startY := 145
+endX := 1133
+endY := 678
+step := 100
+
+; VỊ TRÍ GIỎ
+basketX := 1470
+basketY := 958
+
+; MÀU CỦA QUẢ ĐÀO
+targetColor := 0xF6A072
+
+Loop % ((endX - startX) // step + 1) {
+    x := startX + (A_Index - 1) * step
+    Loop % ((endY - startY) // step + 1) {
+        y := startY + (A_Index - 1) * step
+
+        if (exit_now || !auto) {
+            SetTimer, AutoDrag, Off
+            return
+        }
+
+        ; Kéo siêu nhanh không delay
+        MouseMove, x, y, 0
+        DllCall("mouse_event", "UInt", 0x02, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0) ; Chuột trái xuống
+        MouseMove, basketX, basketY, 0
+        DllCall("mouse_event", "UInt", 0x04, "UInt", 0, "UInt", 0, "UInt", 0, "UPtr", 0) ; Chuột trái nhả
+    }
+}
+
+; === Kiểm tra còn quả đào ===
+PixelSearch, px, py, 340, 145, 1133, 678, targetColor, 5, Fast RGB
+if (ErrorLevel != 0) {
+    GuiControl,, StatusText, ⏳ Hết quả đào... Đang bấm E và chờ...
+
+    Sleep, 500
+    WinActivate, ahk_exe FiveM_b2802_GTAProcess.exe
+    Sleep, 200
+
+    ; Bấm phím E
+    DllCall("keybd_event", "UInt", 0x45, "UInt", 0x12, "UInt", 0, "UPtr", 0)
+    Sleep, 30
+    DllCall("keybd_event", "UInt", 0x45, "UInt", 0x12, "UInt", 2, "UPtr", 0)
+
+    GuiControl,, StatusText, 🟢 Tiếp tục kéo...
+}
 return
 
+; === Đóng GUI thì thoát ===
 GuiClose:
 ExitApp
-
-; === Hàm kiểm tra quyền truy cập ===
-CheckAuthorization() {
-    AuthorizedUsers := GetAuthorizedUsers()
-    EnvGet, CurrentUser, USERNAME
-    MsgBox, User Name: %CurrentUser%
-    
-    if (!IsObject(AuthorizedUsers) || AuthorizedUsers.Length() = 0) {
-        MsgBox, Lỗi! Không tải được danh sách user hoặc danh sách rỗng.
-        return False
-    }
-    
-    for index, user in AuthorizedUsers {
-        if (Trim(user) = Trim(CurrentUser)) {
-            MsgBox, Bạn có quyền truy cập!
-            return True
-        }
-    }
-    
-    MsgBox, Vui lòng liên hệ Tân để được hỗ trợ!
-    return False
-}
-
-; === Hàm lấy danh sách user từ Google Sheets ===
-GetAuthorizedUsers() {
-    URL := "https://script.google.com/macros/s/AKfycby0Z-MPEwaL7NAW4ctnIKBg7g5QRo18XaZbEHs_Ym4o9lPhaysegDJS4DL5Y9RTRYhg5w/exec"
-    WebRequest := ComObjCreate("WinHttp.WinHttpRequest.5.1")
-
-    try {
-        WebRequest.Open("GET", URL, False)
-        WebRequest.Send()
-        Users := WebRequest.ResponseText
-        if (Users = "" || InStr(Users, "error")) {
-            MsgBox, Lỗi! Không nhận được dữ liệu hợp lệ.
-            return []
-        }
-
-        ; Xử lý chuỗi danh sách user
-        Users := RegExReplace(Users, "\[|\]|\r|\n|""", "")
-        Users := RegExReplace(Users, ",\s+", ",")
-        Users := Trim(Users)
-
-        UserList := StrSplit(Users, ",")
-        if (!IsObject(UserList) || UserList.Length() = 0) {
-            MsgBox, Danh sách user rỗng hoặc lỗi!
-            return []
-        }
-
-        return UserList
-    } catch {
-        return []
-    }
-}
